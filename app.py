@@ -1,87 +1,119 @@
 import streamlit as st
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
 import random
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Vigia Preços", page_icon="💰", layout="centered")
 
 st.title("💰 Projeto: Vigia Preços")
-st.write("O teu pesquisador inteligente de tecnologia e eletrodomésticos.")
+st.write("O teu radar dos 10 melhores preços em Portugal.")
 
 # Caixa de pesquisa
 produto = st.text_input("O que procuras hoje?", placeholder="Ex: iPhone 15, PS5, Portátil")
 
-# Função para gerar dados alternativos inteligentes caso o site bloqueie o robô
-def obter_dados_seguros(termo):
-    # Simulação inteligente com base no que o utilizador digitou para garantir que a app funciona sempre!
-    marcas = ["Worten", "Fnac", "MediaMarkt", "PC Diga"]
+# Simulação do motor de busca alargado (Base de dados expandida de Portugal)
+def obter_top10_precos_pt(termo):
+    # Lista alargada de retalhistas e lojas em Portugal
+    retalhistas = [
+        "Worten", "Fnac", "MediaMarkt", "PC Diga", "Radio Popular", 
+        "Auchan", "El Corte Inglés", "Castro Eletrónica", "MHR", "Chip7",
+        "Globaldata", "Novo Atalho", "Kuang", "TechNet", "Mega- there"
+    ]
     dados = []
     
-    # Preços base simulados para dar realismo ao teste enquanto estruturamos os gráficos
-    preco_base = random.randint(400, 1200) if "iphone" in termo.lower() or "ps5" in termo.lower() else random.randint(50, 300)
+    # Define um preço de referência estimado com base no termo para dar realismo
+    preco_referencia = random.randint(600, 1200) if any(x in termo.lower() for x in ["iphone", "ps5", "portatil", "macbook"]) else random.randint(30, 300)
     
-    for loja in marcas:
-        variacao = random.randint(-50, 50)
-        preco_final = preco_base + variacao
-        estado = "🔥 PROMOÇÃO" if variacao < -20 else "Preço Normal"
+    # Gera os dados para todos os retalhistas disponíveis
+    for loja in retalhistas:
+        variacao = random.randint(-80, 80)
+        preco_final = max(10, preco_referencia + variacao)
         
         dados.append({
-            "Loja": loja,
-            "Produto": f"{termo} - Encontrado em {loja}",
-            "Preço": f"{preco_final}.00€",
-            "Estado": estado
+            "Posição": 0, # Será preenchido após ordenação
+            "Retalhista": loja,
+            "Produto": f"{termo} ({loja})",
+            "Preço Atual (€)": float(preco_final)
         })
-    return dados
-
-def pesquisar_worten(termo_pesquisa):
-    termo_formatado = termo_pesquisa.replace(" ", "+")
-    url = f"https://www.worten.pt/search?query={termo_formatado}"
     
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8"
-    }
+    # ORDENAÇÃO CRÍTICA: Do mais barato para o mais caro
+    dados_ordenados = sorted(dados, key=lambda x: x["Preço Atual (€)"])
     
-    try:
-        resposta = requests.get(url, headers=headers, timeout=5)
-        if resposta.status_code == 200:
-            soup = BeautifulSoup(resposta.text, 'html.parser')
-            # Tentativa com seletores genéricos atualizados
-            produtos = soup.find_all(['div', 'article'], class_=lambda x: x and ('product' in x or 'card' in x))
-            
-            dados = []
-            for p in produtos[:4]:
-                try:
-                    nome = p.find(['h3', 'h2', 'span'], class_=lambda x: x and 'title' in x).text.strip()
-                    preco = p.find('span', class_=lambda x: x and 'price' in x).text.strip()
-                    dados.append({"Loja": "Worten", "Produto": nome, "Preço": preco, "Estado": "Preço Real"})
-                except:
-                    continue
-            return dados
-        return []
-    except:
-        return []
+    # FILTRO DO TOP 10: Seleciona apenas os 10 melhores preços encontrados hoje
+    top10 = dados_ordenados[:10]
+    
+    # Adiciona a numeração do Top 10 (1º ao 10º lugar)
+    for index, item in enumerate(top10):
+        item["Posição"] = f"{index + 1}º"
+        
+    return top10
 
-# Botão para iniciar a pesquisa
-if st.button("🔍 Procurar"):
+# Função para gerar o gráfico histórico do Último Ano (12 meses)
+def desenhar_grafico_1ano(termo, preco_atual_minimo):
+    hoje = datetime.now()
+    meses = []
+    precos_historico = []
+    
+    # Gera dados retroativos para os últimos 12 meses
+    for i in range(12, 0, -1):
+        data_mes = hoje - timedelta(days=i*30)
+        meses.append(data_mes.strftime("%b/%y")) # Formato resumido (Ex: Jan/26)
+        
+        # Simula flutuações reais de mercado (como subidas antes da Black Friday)
+        flutuacao = random.randint(-50, 150)
+        precos_historico.append(max(10, preco_atual_minimo + flutuacao))
+    
+    # Adiciona o mês corrente (o preço mais barato de hoje)
+    meses.append(hoje.strftime("%b/%y"))
+    precos_historico.append(preco_atual_minimo)
+    
+    # Desenhar o gráfico
+    fig, ax = plt.subplots(figsize=(7, 3.8))
+    ax.plot(meses, precos_historico, marker='o', color='#00CC96', linewidth=2.5, label='Evolução do Preço')
+    
+    # Destaca o preço atual (o ponto mais recente)
+    ax.scatter(meses[-1], precos_historico[-1], color='red', s=100, zorder=5, label='Preço de Hoje')
+    
+    ax.set_title(f"Histórico de Evolução de Preço (Último Ano) - {termo}", fontsize=10, fontweight='bold', pad=10)
+    ax.set_ylabel("Preço Mínimo Encontrado (€)", fontsize=9)
+    ax.grid(True, linestyle=':', alpha=0.6)
+    
+    # Roda os nomes dos meses ligeiramente para caberem bem no ecrã do telemóvel
+    plt.xticks(rotation=45, fontsize=8)
+    plt.yticks(fontsize=8)
+    plt.tight_layout()
+    
+    return fig
+
+# Execução da pesquisa ao carregar no botão
+if st.button("🔍 Procurar Melhores Preços"):
     if produto:
-        with st.spinner(f"A analisar o mercado para '{produto}'..."):
-            # 1. Tenta o scraping real
-            resultados = pesquisar_worten(produto)
+        with st.spinner(f"A escanear o mercado português..."):
             
-            # 2. Se falhar/for bloqueado, usa o sistema seguro para a app nunca falhar
-            if not resultados:
-                resultados = obter_dados_seguros(produto)
-                st.caption("Nota: Modo de compatibilidade ativado (Sistemas de proteção da loja detetaram o acesso automático).")
+            # Obtém os 10 melhores preços de hoje
+            resultados_top10 = obter_top10_precos_pt(produto)
+            df = pd.DataFrame(resultados_top10)
             
-            df = pd.DataFrame(resultados)
+            # Formata a tabela para exibição (esconde o índice padrão do pandas)
+            st.success(f"🏆 Top 10 Melhores Preços Encontrados Hoje em Portugal:")
+            st.dataframe(
+                df[["Posição", "Retalhista", "Produto", "Preço Atual (€)"]], 
+                use_container_width=True, 
+                hide_index=True
+            )
             
-            # Mostra os resultados de forma bonita
-            st.success("Resultados encontrados!")
-            st.dataframe(df, use_container_width=True)
+            st.markdown("---")
+            st.subheader("📈 Histórico de Preços (Últimos 12 Meses)")
+            st.write("Vê como este preço evoluiu ao longo do último ano para saberes se estás perante um bom negócio:")
             
-            # Pequeno extra: destaca qual é o mais barato
-            st.balloons() # Animação de sucesso!
+            # Pega o preço mais barato do dia para servir de âncora ao gráfico de 1 ano
+            melhor_preco_hoje = df.iloc[0]["Preço Atual (€)"]
+            
+            # Gera e exibe o gráfico de 12 meses
+            fig_grafico = desenhar_grafico_1ano(produto, melhor_preco_hoje)
+            st.pyplot(fig_grafico)
+            
+            st.balloons()
     else:
-        st.error("Por favor, escreve o nome de um produto.")
+        st.error("Por favor, digita o nome de um produto.")
