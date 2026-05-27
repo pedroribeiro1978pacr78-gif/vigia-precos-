@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import random
-import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Vigia Preços", page_icon="💰", layout="centered")
@@ -14,92 +13,90 @@ produto = st.text_input("O que procuras hoje?", placeholder="Ex: iPhone 15, PS5,
 
 # Simulação do motor de busca alargado (Base de dados expandida de Portugal)
 def obter_top10_precos_pt(termo):
-    # Lista alargada de retalhistas e lojas em Portugal
     retalhistas = [
         "Worten", "Fnac", "MediaMarkt", "PC Diga", "Radio Popular", 
         "Auchan", "El Corte Inglés", "Castro Eletrónica", "MHR", "Chip7",
-        "Globaldata", "Novo Atalho", "Kuang", "TechNet", "Mega- there"
+        "Globaldata", "Novo Atalho", "Kuantokusta", "TechNet", "Mega-Media"
     ]
     dados = []
     
-    # Define um preço de referência estimado com base no termo para dar realismo
+    # Preço de referência estimado
     preco_referencia = random.randint(600, 1200) if any(x in termo.lower() for x in ["iphone", "ps5", "portatil", "macbook"]) else random.randint(30, 300)
     
-    # Gera os dados para todos os retalhistas disponíveis
     for loja in retalhistas:
         variacao = random.randint(-80, 80)
         preco_final = max(10, preco_referencia + variacao)
         
         dados.append({
-            "Posição": 0, # Será preenchido após ordenação
+            "Posição": 0,
             "Retalhista": loja,
             "Produto": f"{termo} ({loja})",
             "Preço Atual (€)": float(preco_final)
         })
     
-    # ORDENAÇÃO CRÍTICA: Do mais barato para o mais caro
+    # Ordena do mais barato para o mais caro e apanha os 10 primeiros
     dados_ordenados = sorted(dados, key=lambda x: x["Preço Atual (€)"])
-    
-    # FILTRO DO TOP 10: Seleciona apenas os 10 melhores preços encontrados hoje
     top10 = dados_ordenados[:10]
     
-    # Adiciona a numeração do Top 10 (1º ao 10º lugar)
     for index, item in enumerate(top10):
         item["Posição"] = f"{index + 1}º"
         
     return top10
 
-# Função para gerar o gráfico histórico do Último Ano (12 meses)
-def desenhar_grafico_1ano(termo, preco_atual_minimo):
+# Função para gerar os dados do gráfico de 12 meses
+def gerar_dados_historico(preco_atual_minimo):
     hoje = datetime.now()
-    meses = []
-    precos_historico = []
+    datas = []
+    precos = []
     
-    # Gera dados retroativos para os últimos 12 meses
+    # Cria os últimos 12 meses de histórico
     for i in range(12, 0, -1):
         data_mes = hoje - timedelta(days=i*30)
-        meses.append(data_mes.strftime("%b/%y")) # Formato resumido (Ex: Jan/26)
-        
-        # Simula flutuações reais de mercado (como subidas antes da Black Friday)
-        flutuacao = random.randint(-50, 150)
-        precos_historico.append(max(10, preco_atual_minimo + flutuacao))
+        datas.append(data_mes.strftime("%b/%y"))
+        flutuacao = random.randint(-50, 120)
+        precos.append(max(10, preco_atual_minimo + flutuacao))
     
-    # Adiciona o mês corrente (o preço mais barato de hoje)
-    meses.append(hoje.strftime("%b/%y"))
-    precos_historico.append(preco_atual_minimo)
+    # Adiciona o mês atual
+    datas.append(hoje.strftime("%b/%y"))
+    precos.append(preco_atual_minimo)
     
-    # Desenhar o gráfico
-    fig, ax = plt.subplots(figsize=(7, 3.8))
-    ax.plot(meses, precos_historico, marker='o', color='#00CC96', linewidth=2.5, label='Evolução do Preço')
-    
-    # Destaca o preço atual (o ponto mais recente)
-    ax.scatter(meses[-1], precos_historico[-1], color='red', s=100, zorder=5, label='Preço de Hoje')
-    
-    ax.set_title(f"Histórico de Evolução de Preço (Último Ano) - {termo}", fontsize=10, fontweight='bold', pad=10)
-    ax.set_ylabel("Preço Mínimo Encontrado (€)", fontsize=9)
-    ax.grid(True, linestyle=':', alpha=0.6)
-    
-    # Roda os nomes dos meses ligeiramente para caberem bem no ecrã do telemóvel
-    plt.xticks(rotation=45, fontsize=8)
-    plt.yticks(fontsize=8)
-    plt.tight_layout()
-    
-    return fig
+    # Cria um formato de tabela que o Streamlit adora para gráficos
+    df_grafico = pd.DataFrame({
+        "Mês": datas,
+        "Preço Mínimo (€)": precos
+    })
+    return df_grafico.set_index("Mês")
 
-# Execução da pesquisa ao carregar no botão
+# Execução ao carregar no botão
 if st.button("🔍 Procurar Melhores Preços"):
     if produto:
-        with st.spinner(f"A escanear o mercado português..."):
+        with st.spinner("A escanear o mercado português..."):
             
-            # Obtém os 10 melhores preços de hoje
+            # Obtém e mostra o Top 10
             resultados_top10 = obter_top10_precos_pt(produto)
             df = pd.DataFrame(resultados_top10)
             
-            # Formata a tabela para exibição (esconde o índice padrão do pandas)
-            st.success(f"🏆 Top 10 Melhores Preços Encontrados Hoje em Portugal:")
+            st.success("🏆 Top 10 Melhores Preços Encontrados Hoje em Portugal:")
             st.dataframe(
                 df[["Posição", "Retalhista", "Produto", "Preço Atual (€)"]], 
                 use_container_width=True, 
+                hide_index=True
+            )
+            
+            st.markdown("---")
+            st.subheader("📈 Histórico de Preços (Últimos 12 Meses)")
+            st.write("Vê a evolução do preço ao longo do último ano:")
+            
+            # Pega o preço mais baixo e gera o histórico
+            melhor_preco_hoje = df.iloc[0]["Preço Atual (€)"]
+            dados_grafico = gerar_dados_historico(melhor_preco_hoje)
+            
+            # DESENHA O GRÁFICO NATIVO (Sem erros de instalação!)
+            st.line_chart(dados_grafico, color="#00CC96")
+            
+            st.balloons()
+    else:
+        st.error("Por favor, digita o nome de um produto.")
                 hide_index=True
             )
             
